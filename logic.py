@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from operation import _Op
+from io import StringIO
+
+from operation import (Op, Negation,
+                       Disjunction, Conjunction,
+                       Implication, Bicondition)
 
 
 class Atomic:
@@ -14,7 +16,7 @@ class Atomic:
         return {self.value}
 
     def eval(self, values: dict[str, int]) -> bool:
-        return values.get(self.value)
+        return bool(values[self.value])
 
     def __str__(self) -> str:
         return self.value
@@ -23,8 +25,8 @@ class Atomic:
 class Expression:
     """Represents complex non-atomic expression"""
 
-    def __init__(self, data: _Op | Atomic, evaluation: Evaluation = None) -> None:
-        self.data: _Op | Atomic = data
+    def __init__(self, data: Op | Atomic, evaluation: Evaluation | None = None) -> None:
+        self.data: Op | Atomic = data
         self.evaluation = evaluation
         if self.evaluation is None:
             self.evaluation = Evaluation()
@@ -42,8 +44,9 @@ class Expression:
 
     def eval(self) -> bool:
         """Whether entire expression evaluates to true or false"""
+        assert self.evaluation is not None # please believe me, it really isnt
         result = self.data.eval(self.evaluation.values)
-        print("It is {}".format(str(result).lower()))
+        print("it is {}".format(str(result).lower()))
         return result
 
     def __str__(self) -> str:
@@ -65,6 +68,25 @@ class Evaluation:
         self.values = good if len(good) > 0 else self.default
         if len(good) == 0:
             print("Using default evaluation, every atomic sentence has value of 1")
+        else:
+            print(*(f"{k}={v}" for k, v in good.items()))
 
     def __str__(self) -> str:
         return str(self.values)
+
+
+class PolishNotation(Op):
+
+    def __new__(cls, text: str) -> Atomic | Op:
+        return __class__._parse(StringIO(text))
+
+    @staticmethod
+    def _parse(buff: StringIO) -> Atomic | Op:
+        char = buff.read(1)
+        if char == "N":
+            return Negation(argument=__class__._parse(buff))
+        elif char in "ACEK":
+            op = {"A": Disjunction, "K": Conjunction,
+                "C": Implication, "E": Bicondition}[char]
+            return op(pre=__class__._parse(buff), suc=__class__._parse(buff))
+        return Atomic(char)

@@ -1,9 +1,6 @@
 from __future__ import annotations
-from io import StringIO
 
-from operation import (Op, Negation,
-                       Disjunction, Conjunction,
-                       Implication, Bicondition)
+from operation import (Op, Negation)
 
 
 class Atomic:
@@ -11,6 +8,7 @@ class Atomic:
 
     def __init__(self, value: str) -> None:
         if len(value) != 1:
+            # TODO: remove that limitation
             msg = f"Variable name of an atomic sentence must be a single character: {value}"
             raise Exception(msg)
         self.value = value.lower()
@@ -33,7 +31,11 @@ class Expression:
         self.evaluation = evaluation
         if self.evaluation is None:
             self.evaluation = Evaluation()
-        diff = self._get_all_atomics() - self.evaluation.values.keys()
+        atomics = self._get_all_atomics()
+        all_keys = self.evaluation.values.keys()
+        diff = atomics - all_keys
+        for key in all_keys - atomics:
+            _ = self.evaluation.values.pop(key)
         if len(diff) > 0:
             print("Not every atomic sentence has determined value")
             print("Add evaluation for these sentences:", diff)
@@ -43,6 +45,11 @@ class Expression:
         return self.data.get_atomics()
 
     def print(self) -> None:
+        self.print_expression()
+        self.print_logical_value()
+        self.print_tautologicality()
+
+    def print_expression(self) -> None:
         print(self)
 
     def print_logical_value(self):
@@ -70,10 +77,10 @@ class Expression:
 
     def __str__(self) -> str:
         """Expression with outermost parentheses removed"""
-        fmt = str(self.data).removeprefix("(")
-        if not fmt.startswith(Negation.symbol):
-            return fmt.removesuffix(")")
-        return fmt
+        text = str(self.data)
+        if not text.startswith(Negation.symbol):
+            return text.removeprefix("(").removesuffix(")")
+        return text
 
 
 class Evaluation:
@@ -93,40 +100,3 @@ class Evaluation:
 
     def __str__(self) -> str:
         return str(self.values)
-
-
-class PolishNotation(Op):
-
-    text = ""
-
-    def __new__(cls, text: str) -> Atomic | Op:
-        __class__.text = text
-        return __class__._parse(buff=StringIO(text), index=-1)
-
-    @staticmethod
-    def _get_operator(char: str) -> type:
-        """
-        Given valid operation symbol
-        returns corresponding constructor.
-        """
-        return {"A": Disjunction, "K": Conjunction,
-                "C": Implication, "E": Bicondition}[char]
-
-    @staticmethod
-    def _parse(*, buff: StringIO, index: int) -> Atomic | Op:
-        """Recursive"""
-        char = buff.read(1)
-        if len(char) == 0:
-            txt = __class__.text
-            fmt = "{}\x1b[31m{}\x1b[0m{}".format(txt[:index], txt[index], txt[index+1:])
-            raise Exception(f"Not enough arguments for formula at index {index}: {fmt}")
-        index += 1
-        if char == "N":
-            argument = __class__._parse(buff=buff, index=index)
-            return Negation(argument=argument)
-        elif char in "ACEK":
-            op = __class__._get_operator(char)
-            predecessor = __class__._parse(buff=buff, index=index)
-            successor = __class__._parse(buff=buff, index=index)
-            return op(pre=predecessor, suc=successor)
-        return Atomic(char)

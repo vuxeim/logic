@@ -10,7 +10,10 @@ class Atomic:
     """Represents atomic sentence (p, q, r, ...)"""
 
     def __init__(self, value: str) -> None:
-        self.value = value
+        if len(value) != 1:
+            msg = f"Variable name of an atomic sentence must be a single character: {value}"
+            raise Exception(msg)
+        self.value = value.lower()
 
     def get_atomics(self) -> set[str]:
         return {self.value}
@@ -42,16 +45,35 @@ class Expression:
     def print(self) -> None:
         print(self)
 
-    def eval(self) -> bool:
+    def print_logical_value(self):
+        print("Given these values:")
+        assert self.evaluation is not None # believe me, it really isn't
+        print(*(f"{k}={v}" for k, v in self.evaluation.values.items()))
+        print("This expression has a logical value of {}".format(str(self._eval()).lower()))
+
+    def print_tautologicality(self) -> None:
+        atomics = self._get_all_atomics()
+        atomics_amount = len(atomics)
+        # yo mama hates me for the crime below
+        possibilities = set(self.data.eval({k: int(j) for k, j in zip(atomics, str(bin(i))[2:].zfill(atomics_amount))}) for i in range(2**atomics_amount))
+        if all(possibilities) is True:
+            return print("It is a tautology")
+        if not any(possibilities) is True:
+            return print("It is a contradiction")
+        print("It is neither tautology nor contradiction")
+
+    def _eval(self) -> bool:
         """Whether entire expression evaluates to true or false"""
-        assert self.evaluation is not None # please believe me, it really isnt
+        assert self.evaluation is not None # believe me, it really isn't
         result = self.data.eval(self.evaluation.values)
-        print("it is {}".format(str(result).lower()))
         return result
 
     def __str__(self) -> str:
         """Expression with outermost parentheses removed"""
-        return str(self.data).removeprefix("(").removesuffix(")")
+        fmt = str(self.data).removeprefix("(")
+        if not fmt.startswith(Negation.symbol):
+            return fmt.removesuffix(")")
+        return fmt
 
 
 class Evaluation:
@@ -68,8 +90,6 @@ class Evaluation:
         self.values = good if len(good) > 0 else self.default
         if len(good) == 0:
             print("Using default evaluation, every atomic sentence has value of 1")
-        else:
-            print(*(f"{k}={v}" for k, v in good.items()))
 
     def __str__(self) -> str:
         return str(self.values)
@@ -77,16 +97,36 @@ class Evaluation:
 
 class PolishNotation(Op):
 
+    text = ""
+
     def __new__(cls, text: str) -> Atomic | Op:
-        return __class__._parse(StringIO(text))
+        __class__.text = text
+        return __class__._parse(buff=StringIO(text), index=-1)
 
     @staticmethod
-    def _parse(buff: StringIO) -> Atomic | Op:
-        char = buff.read(1)
-        if char == "N":
-            return Negation(argument=__class__._parse(buff))
-        elif char in "ACEK":
-            op = {"A": Disjunction, "K": Conjunction,
+    def _get_operator(char: str) -> type:
+        """
+        Given valid operation symbol
+        returns corresponding constructor.
+        """
+        return {"A": Disjunction, "K": Conjunction,
                 "C": Implication, "E": Bicondition}[char]
-            return op(pre=__class__._parse(buff), suc=__class__._parse(buff))
+
+    @staticmethod
+    def _parse(*, buff: StringIO, index: int) -> Atomic | Op:
+        """Recursive"""
+        char = buff.read(1)
+        if len(char) == 0:
+            txt = __class__.text
+            fmt = "{}\x1b[31m{}\x1b[0m{}".format(txt[:index], txt[index], txt[index+1:])
+            raise Exception(f"Not enough arguments for formula at index {index}: {fmt}")
+        index += 1
+        if char == "N":
+            argument = __class__._parse(buff=buff, index=index)
+            return Negation(argument=argument)
+        elif char in "ACEK":
+            op = __class__._get_operator(char)
+            predecessor = __class__._parse(buff=buff, index=index)
+            successor = __class__._parse(buff=buff, index=index)
+            return op(pre=predecessor, suc=successor)
         return Atomic(char)

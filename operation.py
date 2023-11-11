@@ -48,11 +48,15 @@ class _DoubleArgumentOp(Op):
 
 class Negation(_SingleArgumentOp):
 
+    """Reverses the value"""
+
     symbol = "-"
     table = {True: False, False: True}
 
 
 class Disjunction(_DoubleArgumentOp):
+
+    """False iff both the statements are false"""
 
     symbol = "v"
     table = {(True, True): True,
@@ -63,6 +67,8 @@ class Disjunction(_DoubleArgumentOp):
 
 class Conjunction(_DoubleArgumentOp):
 
+    """True iff both the statements are true"""
+
     symbol = "^"
     table = {(True, True): True,
              (True, False): False,
@@ -72,6 +78,8 @@ class Conjunction(_DoubleArgumentOp):
 
 class Implication(_DoubleArgumentOp):
 
+    """If/then"""
+
     symbol = "->"
     table = {(True, True): True,
              (True, False): False,
@@ -80,6 +88,8 @@ class Implication(_DoubleArgumentOp):
 
 
 class Bicondition(_DoubleArgumentOp):
+
+    """If and only if (iff)"""
 
     symbol = "<->"
     table = {(True, True): True,
